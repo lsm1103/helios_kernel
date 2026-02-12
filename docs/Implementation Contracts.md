@@ -8,6 +8,7 @@
 ## 2. 适用边界
 - 适用领域：`Project / Session / Task / Agent / Governance`。
 - 适用对象：应用服务层、领域服务层、事件存储与审计组件。
+- 适用扩展：in-process 插件运行时的签名校验与信任管理契约。
 - 不包含：数据库 DDL、HTTP/gRPC 传输协议、鉴权实现细节。
 
 ## 3. 全局约定
@@ -16,6 +17,7 @@
 - 所有命令必须带 `idempotency_key`。
 - 命令处理必须是“校验 -> 状态变更 -> 事件追加”原子流程。
 - 拒绝类结果必须可审计（拒绝日志或拒绝事件至少一种）。
+- 插件加载命令必须先通过签名校验，未通过时 must 返回拒绝结果并写审计。
 
 ## 4. Command Envelope（统一命令封装）
 
@@ -34,6 +36,7 @@
   },
   "idempotency_key": "idem_...",
   "expected_version": 12,
+  "security_context": {},
   "payload": {},
   "requested_at": "2026-02-10T15:30:00Z"
 }
@@ -42,12 +45,14 @@
 ### 4.2 字段约束
 - `command_id`：命令唯一标识，用于追踪。
 - `command_name`：必须命中已注册命令清单。
-- `aggregate_type`：`PROJECT | SESSION | TASK | AGENT | GOVERNANCE_CASE`。
+- `aggregate_type`：`PROJECT | SESSION | TASK | AGENT | GOVERNANCE_CASE | SYSTEM`。
 - `aggregate_id`：目标聚合 ID。
 - `actor.actor_type`：`HUMAN | AGENT | SYSTEM`。
 - `idempotency_key`：同一聚合下同命令唯一。
 - `expected_version`：可选，开启乐观并发控制时必填。
+- `security_context`：安全上下文；插件验签链路应填写签名摘要、`key_id` 等字段。
 - `payload`：命令特定参数。
+- 插件安全命令应使用：`aggregate_type=SYSTEM`，`aggregate_id=plugin_id`。
 
 ## 5. Command Result Envelope（统一返回）
 
@@ -58,6 +63,7 @@
   "aggregate_id": "task_...",
   "new_version": 13,
   "event_ids": ["evt_1", "evt_2"],
+  "rejection_audit_id": null,
   "error": null,
   "processed_at": "2026-02-10T15:30:01Z"
 }
@@ -66,6 +72,7 @@
 - `status`：`ACCEPTED | REJECTED | NOOP_IDEMPOTENT`。
 - `NOOP_IDEMPOTENT`：检测到同 key 重放且 payload 等价。
 - `REJECTED` 必须返回标准错误码。
+- `rejection_audit_id`：当 `status=REJECTED` 时 must 填写对应审计记录 ID。
 
 ## 6. Event Envelope（统一事件封装）
 
@@ -88,6 +95,14 @@
   "occurred_at": "2026-02-10T15:30:01Z",
   "aggregate_version": 13,
   "schema_version": 1,
+  "audit_ref": {
+    "rejection_audit_id": null
+  },
+  "security_context": {
+    "signature_verified": true,
+    "signature_key_id": "key_...",
+    "signature_digest": "sha256:..."
+  },
   "payload": {}
 }
 ```
@@ -99,6 +114,8 @@
 - `correlation_id`：同一业务链路共享一个关联 ID。
 - `aggregate_version`：事件写入后的聚合版本号。
 - `payload`：最小字段集遵循领域文档定义。
+- `audit_ref`：关联拒绝/安全审计记录，便于回放时追踪决策依据。
+- `security_context`：安全相关上下文；非插件链路可为空对象或省略。
 
 ## 7. 幂等与并发契约
 - 唯一键建议：`(aggregate_id, command_name, idempotency_key)`。
@@ -261,6 +278,26 @@
 - 触发事件：`GovernanceCaseEnded`。
 - 典型拒绝：`HELIOS-GOV-409-CASE_NOT_CLOSABLE`。
 
+## 8.6 Plugin Security Commands（Runtime Extension）
+
+### `VerifyPluginSignature`
+- `payload` 必填：`plugin_id`, `plugin_version`, `manifest_hash`, `signature`, `key_id`。
+- 前置：插件包可读，且 `plugin-manifest.json` 存在。
+- 触发事件：`PluginSignatureVerified` 或 `PluginSignatureRejected`。
+- 典型拒绝：`HELIOS-PLG-401-SIGNATURE_MISSING`, `HELIOS-PLG-403-SIGNATURE_INVALID`。
+
+### `UpdatePluginTrustStore`
+- `payload` 必填：`key_id`, `public_key`, `action`（`TRUST | REVOKE | ROTATE`）。
+- 前置：`actor.actor_type` 必须为 `HUMAN`。
+- 触发事件：`PluginTrustStoreUpdated`。
+- 典型拒绝：`HELIOS-PLG-403-TRUST_STORE_UPDATE_REQUIRES_HUMAN`。
+
+### `LoadPlugin`
+- `payload` 必填：`plugin_id`, `plugin_version`, `capabilities[]`。
+- 前置：最近一次验签结论为通过，且 `key_id` 在 trust store 中有效。
+- 触发事件：`PluginLoaded`。
+- 典型拒绝：`HELIOS-PLG-403-PUBLISHER_NOT_TRUSTED`, `HELIOS-PLG-412-SIGNATURE_VERIFICATION_REQUIRED`。
+
 ## 9. 错误码契约
 
 ## 9.1 错误返回结构
@@ -301,10 +338,21 @@
 - `HELIOS-GOV-403-NON_HUMAN_TERMINATE_PROJECT_DENIED`
 - `HELIOS-GOV-409-CASE_NOT_OPEN`
 
+## 9.4 插件签名错误码（必须保留）
+- `HELIOS-PLG-401-SIGNATURE_MISSING`：插件包缺失签名文件或签名字段。
+- `HELIOS-PLG-403-SIGNATURE_INVALID`：签名验签失败或签名算法不被接受。
+- `HELIOS-PLG-403-PUBLISHER_NOT_TRUSTED`：签名公钥不在本地信任仓库。
+- `HELIOS-PLG-403-TRUST_STORE_UPDATE_REQUIRES_HUMAN`：非 HUMAN 更新信任仓库被拒绝。
+- `HELIOS-PLG-412-SIGNATURE_VERIFICATION_REQUIRED`：未完成验签即尝试加载插件。
+- `HELIOS-PLG-422-MANIFEST_HASH_MISMATCH`：签名内容与 manifest hash 不一致。
+- `HELIOS-PLG-409-PLUGIN_VERSION_PIN_CONFLICT`：插件版本与本地 pin 策略冲突。
+
 ## 10. 事件最小字段对齐要求
 - 实现必须保证事件 payload 至少包含各领域文档定义的最小字段。
 - 如果实现层新增字段，只允许追加，不允许删除或重命名既有字段。
 - 事件 `schema_version` 升级时必须提供向后兼容读取策略。
+- 插件安全事件（`PluginSignatureVerified`, `PluginSignatureRejected`, `PluginLoaded`）must 包含：
+  - `plugin_id`, `plugin_version`, `signature_key_id`, `manifest_hash`, `verification_result`。
 
 ## 11. 与流程图的一致性门禁
 - 上线前必须通过以下流程一致性检查：
@@ -314,6 +362,7 @@
 4. 非 HUMAN 的 `TERMINATE_PROJECT` 必须被拒绝并记录审计。
 5. 社交 App 私聊/群聊必须映射到可追踪 Session。
 6. 工具会话绑定（Codex/Claude Code）必须支持复用与失效重建。
+7. in-process 插件必须先验签后加载，验签失败必须记录审计并拒绝执行。
 
 ## 12. 参考文档
 - `/Users/xm/Desktop/work_project/backend/helios_kernel/docs/Domain Model Overview.md`
@@ -323,3 +372,4 @@
 - `/Users/xm/Desktop/work_project/backend/helios_kernel/docs/Agent Domain Model.md`
 - `/Users/xm/Desktop/work_project/backend/helios_kernel/docs/Governance Domain Model.md`
 - `/Users/xm/Desktop/work_project/backend/helios_kernel/docs/Business Flows.md`
+- `/Users/xm/Desktop/work_project/backend/helios_kernel/docs/开发架构与技术栈方案.md`
