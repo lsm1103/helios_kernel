@@ -1,0 +1,36 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 217 33% 98%;
+    --foreground: 218 42% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 218 42% 12%;
+    --primary: 214 91% 45%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 27% 91%;
+    --secondary-foreground: 218 42% 18%;
+    --muted: 214 26% 93%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 199 89% 52%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 22% 84%;
+    --input: 214 22% 84%;
+    --ring: 214 91% 45%;
+    --radius: 1rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}

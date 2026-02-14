@@ -1,0 +1,42 @@
+## Context
+
+系统在飞书中承载协作会话，在 Codex/Claude Code 中承载执行会话。MVP 目标不是全自动运维，而是先打通“协作触发 -> 工具执行 -> 人工确认 -> 继续执行”的最短闭环，并保证审计可追溯。
+
+## Goals / Non-Goals
+
+**Goals:**
+- 建立协作会话与工具会话双轨模型，避免记录污染。
+- 支持一条协作会话绑定多个工具 session，并可切换。
+- 建立 HITL 标准状态机与 stdin 回灌接口。
+- 建立最小策略控制：命令白名单 + 高风险人工确认 + 审计。
+
+**Non-Goals:**
+- 不实现企业级全自动发布平台。
+- 不实现复杂多级审批引擎。
+- 不承诺工具 transcript 的长期兼容归档。
+
+## Decisions
+
+1. **双轨模型**
+- 协作轨（飞书）只保留协作消息、工具摘要卡片、引用事件。
+- 工具轨保存/读取工具 session 上下文，协作轨 must not 写入完整 transcript。
+
+2. **会话与运行映射**
+- 维护 `collab_session_id -> tool_session_id` 多绑定关系。
+- 运行时维护 `task_id <-> tool_session_id <-> run_id` 映射，作为 stdin 回灌路由依据。
+
+3. **HITL 闭环协议**
+- 工具侧输出结构化 `NEED_USER_INPUT` 信号触发 `interaction_request`。
+- 飞书卡片回调必须使用 `idempotency_key` 防重放。
+- 回灌接口固定为 `POST /internal/tool-runs/{run_id}/stdin`。
+
+4. **技术支持与治理控制**
+- 规则区/API 问答返回 should 附来源标识。
+- 命令执行默认拒绝，未在白名单内 must not 执行。
+- 高风险命令 must 先完成人工确认。
+
+## Risks / Trade-offs
+
+- 依赖工具本地私有会话格式会引入版本升级风险。
+- 仅摘要回传可降低噪音，但会减少飞书内可见上下文；通过“打开全文链接”补偿。
+- 人工确认会增加流程时延，但可显著降低高风险误操作。

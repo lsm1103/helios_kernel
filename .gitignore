@@ -1,0 +1,11 @@
+node_modules/
+package-lock.json
+.pnpm-store/
+.pnpm-home/
+.xdg-data/
+.xdg-config/
+
+**/dist/
+**/.helios/
+
+.DS_Store

@@ -1,0 +1,15 @@
+{
+  "name": "helios-kernel",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws --if-present build",
+    "dev:api": "sh -c 'export HOST=${HOST:-127.0.0.1}; export PORT=${PORT:-1999}; echo \"[helios] API: http://$HOST:$PORT/api\"; npm run -w @helios/api start:dev'",
+    "dev:web": "sh -c 'export NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:1999/api}; echo \"[helios] WEB: http://127.0.0.1:3000 (if busy, Next will try 3001+)\"; echo \"[helios] NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL\"; npm run -w @helios/web dev'"
+  }
+}

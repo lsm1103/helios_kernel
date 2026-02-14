@@ -1,0 +1,7 @@
+{
+  "/sessions/[collabSessionId]/page": "app/sessions/[collabSessionId]/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/page": "app/page.js",
+  "/tools/[toolSessionId]/page": "app/tools/[toolSessionId]/page.js",
+  "/tasks/[taskId]/page": "app/tasks/[taskId]/page.js"
+}
