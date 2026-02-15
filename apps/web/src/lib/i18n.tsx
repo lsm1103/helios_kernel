@@ -5,6 +5,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useState
 export type Locale = "zh" | "en";
 
 const LOCALE_STORAGE_KEY = "helios-locale";
+const LOCALE_MANUAL_KEY = "helios-locale-manual";
 
 const dictionaries = {
   en: {
@@ -189,40 +190,89 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function detectBrowserLocale(): Locale {
-  if (typeof navigator === "undefined") {
-    return "en";
-  }
+type InitialLocaleResolution = {
+  locale: Locale;
+  source: "ssr_default" | "local_storage" | "browser_language";
+  stored: string | null;
+  browserLanguage: string | null;
+  browserLanguages: string[];
+};
 
-  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
-}
-
-function getInitialLocale(): Locale {
+function resolveInitialLocale(): InitialLocaleResolution {
   if (typeof window === "undefined") {
-    return "en";
+    return {
+      locale: "en" as Locale,
+      source: "ssr_default",
+      stored: null as string | null,
+      browserLanguage: null as string | null,
+      browserLanguages: [] as string[]
+    };
   }
 
   const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-  if (stored === "zh" || stored === "en") {
-    return stored;
+  const manual = window.localStorage.getItem(LOCALE_MANUAL_KEY) === "1";
+  const browserLanguage =
+    typeof navigator !== "undefined" ? navigator.language : null;
+  const browserLanguages =
+    typeof navigator !== "undefined" && Array.isArray(navigator.languages)
+      ? [...navigator.languages]
+      : [];
+
+  if (manual && (stored === "zh" || stored === "en")) {
+    return {
+      locale: stored as Locale,
+      source: "local_storage",
+      stored,
+      browserLanguage,
+      browserLanguages
+    };
   }
 
-  return detectBrowserLocale();
+  const locale: Locale =
+    typeof browserLanguage === "string" &&
+    browserLanguage.toLowerCase().startsWith("zh")
+      ? "zh"
+      : "en";
+
+  return {
+    locale,
+    source: "browser_language",
+    stored,
+    browserLanguage,
+    browserLanguages
+  };
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocaleState] = useState<Locale>("en");
+
+  function setLocale(localeValue: Locale) {
+    setLocaleState(localeValue);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, localeValue);
+      window.localStorage.setItem(LOCALE_MANUAL_KEY, "1");
+    }
+  }
 
   useEffect(() => {
-    setLocale(getInitialLocale());
+    const resolved = resolveInitialLocale();
+    console.info("[helios-i18n] initial locale resolution", {
+      chosenLocale: resolved.locale,
+      source: resolved.source,
+      stored: resolved.stored,
+      browserLanguage: resolved.browserLanguage,
+      browserLanguages: resolved.browserLanguages
+    });
+    setLocaleState(resolved.locale);
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-    }
     if (typeof document !== "undefined") {
       document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+      console.info("[helios-i18n] page locale update", {
+        appLocale: locale,
+        htmlLang: document.documentElement.lang
+      });
     }
   }, [locale]);
 
