@@ -1,3 +1,8 @@
+## Status
+
+- Implementation: `IN_PROGRESS` (as of 2026-02-15)
+- Notes: HTTP webhook endpoint exists, but full Feishu->collab session mapping and thread reply routing are not fully implemented yet.
+
 ## ADDED Requirements
 
 ### Requirement: Feishu 消息 MUST 映射到协作会话

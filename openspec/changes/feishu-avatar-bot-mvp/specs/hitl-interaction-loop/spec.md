@@ -1,3 +1,8 @@
+## Status
+
+- Implementation: `IMPLEMENTED` (as of 2026-02-15)
+- Notes: NEED_USER_INPUT parsing, interaction_request lifecycle (pending/resolved), idempotent callback handling, and stdin relay are implemented.
+
 ## ADDED Requirements
 
 ### Requirement: 工具请求人工输入时 MUST 创建交互请求

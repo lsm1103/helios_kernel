@@ -18,7 +18,7 @@ import { I18nProvider, useI18n } from "../lib/i18n";
 
 const navItems = [
   { href: "/", key: "dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/sessions/demo-session", key: "sessions", icon: Route },
+  { href: "/sessions", key: "sessions", icon: Route },
   { href: "/tasks/demo-task", key: "tasks", icon: ClipboardList },
   { href: "/tools/demo-tool-session", key: "toolSessions", icon: MessageSquareCode },
   { href: "/settings", key: "settings", icon: Settings2 }

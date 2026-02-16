@@ -68,6 +68,41 @@ export class ToolSessionController {
     });
   }
 
+  @Get("v1/tool-sessions/:toolSessionId/transcript")
+  transcript(
+    @Param("toolSessionId") toolSessionId: string,
+    @Query("run_id") runId?: string,
+    @Query("limit", new ParseIntPipe({ optional: true })) limit?: number
+  ) {
+    const safeLimit = limit ?? 300;
+    const link = this.toolSessionService.getByToolSessionId(toolSessionId);
+    const provider = link?.provider;
+
+    if (runId) {
+      const output = this.toolRunService.output(runId, safeLimit);
+      return {
+        tool_session_id: toolSessionId,
+        run_id: runId,
+        provider,
+        entries: output.map((row) => ({
+          role: "tool",
+          text: row.data,
+          timestamp: row.receivedAt
+        }))
+      };
+    }
+
+    const entries = this.toolSessionService.peek(toolSessionId, safeLimit);
+    return {
+      tool_session_id: toolSessionId,
+      provider,
+      entries: entries.map((row) => ({
+        role: "system",
+        text: row
+      }))
+    };
+  }
+
   @Get("v1/local-tool-sessions")
   listLocalToolSessions(
     @Query("provider") provider?: string,

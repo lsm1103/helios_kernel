@@ -32,6 +32,13 @@ export interface NeedUserInputSignal {
   timeoutMinutes?: number;
 }
 
+export interface RunTerminationSignal {
+  runId: string;
+  reason: "EXITED" | "STOPPED";
+  exitCode?: number;
+  signal?: number | string;
+}
+
 interface StartRunInput {
   runId: string;
   taskId: string;
@@ -42,6 +49,7 @@ interface StartRunInput {
   cwd?: string;
   env?: Record<string, string>;
   onNeedUserInput?: (signal: NeedUserInputSignal) => void;
+  onRunTerminated?: (signal: RunTerminationSignal) => void;
 }
 
 type ManagedProcess =
@@ -61,6 +69,7 @@ export class PtyRunManager {
   private readonly outputs: RunOutputRecord[] = [];
   private readonly processes = new Map<string, ManagedProcess>();
   private readonly lineBuffers = new Map<string, string>();
+  private readonly terminationHandlers = new Map<string, (signal: RunTerminationSignal) => void>();
 
   startRun(input: StartRunInput): RunRecord {
     const mergedEnv = {
@@ -87,6 +96,9 @@ export class PtyRunManager {
     this.runs.set(record.runId, record);
     this.processes.set(record.runId, managed);
     this.lineBuffers.set(record.runId, "");
+    if (input.onRunTerminated) {
+      this.terminationHandlers.set(record.runId, input.onRunTerminated);
+    }
 
     this.onData(managed, (chunk) => {
       this.outputs.push({
@@ -98,13 +110,14 @@ export class PtyRunManager {
       this.processOutput(record.runId, chunk, input.onNeedUserInput);
     });
 
-    this.onExit(managed, () => {
-      const existing = this.runs.get(record.runId);
-      if (existing) {
-        existing.status = "ENDED";
-        existing.endedAt = new Date().toISOString();
-        this.runs.set(existing.runId, existing);
-      }
+    this.onExit(managed, (event) => {
+      this.markRunEnded(record.runId);
+      this.emitRunTerminated({
+        runId: record.runId,
+        reason: "EXITED",
+        exitCode: event.exitCode,
+        signal: event.signal
+      });
       this.processes.delete(record.runId);
       this.lineBuffers.delete(record.runId);
     });
@@ -134,14 +147,11 @@ export class PtyRunManager {
       this.kill(proc);
     }
 
-    const record = this.runs.get(runId);
-    if (!record) {
-      return;
-    }
-
-    record.status = "ENDED";
-    record.endedAt = new Date().toISOString();
-    this.runs.set(runId, record);
+    this.markRunEnded(runId);
+    this.emitRunTerminated({
+      runId,
+      reason: "STOPPED"
+    });
     this.processes.delete(runId);
     this.lineBuffers.delete(runId);
   }
@@ -297,13 +307,21 @@ export class PtyRunManager {
     managed.proc.stderr.on("data", (chunk: string) => cb(chunk));
   }
 
-  private onExit(managed: ManagedProcess, cb: () => void): void {
+  private onExit(
+    managed: ManagedProcess,
+    cb: (event: { exitCode?: number; signal?: number | string }) => void
+  ): void {
     if (managed.kind === "pty") {
-      managed.proc.onExit(() => cb());
+      managed.proc.onExit((event) => cb({ exitCode: event.exitCode, signal: event.signal }));
       return;
     }
 
-    managed.proc.on("exit", () => cb());
+    managed.proc.on("exit", (code, signal) => {
+      cb({
+        exitCode: typeof code === "number" ? code : undefined,
+        signal: signal ?? undefined
+      });
+    });
   }
 
   private write(managed: ManagedProcess, data: string): void {
@@ -322,5 +340,25 @@ export class PtyRunManager {
     }
 
     managed.proc.kill("SIGTERM");
+  }
+
+  private markRunEnded(runId: string): void {
+    const record = this.runs.get(runId);
+    if (!record || record.status === "ENDED") {
+      return;
+    }
+
+    record.status = "ENDED";
+    record.endedAt = new Date().toISOString();
+    this.runs.set(runId, record);
+  }
+
+  private emitRunTerminated(signal: RunTerminationSignal): void {
+    const handler = this.terminationHandlers.get(signal.runId);
+    if (!handler) {
+      return;
+    }
+    this.terminationHandlers.delete(signal.runId);
+    handler(signal);
   }
 }

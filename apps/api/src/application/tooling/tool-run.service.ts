@@ -9,6 +9,7 @@ import {
 } from "../../infrastructure/tool-runners/pty-run-manager";
 import { InteractionRequestService } from "./interaction-request.service";
 import { ToolSessionLinkService } from "./tool-session-link.service";
+import { CollabFeedEventService } from "../session/collab-feed-event.service";
 
 interface StartToolRunInput {
   collabSessionId: string;
@@ -28,7 +29,8 @@ export class ToolRunService {
     private readonly claudeAdapter: ClaudeAdapter,
     private readonly runManager: PtyRunManager,
     private readonly interactionService: InteractionRequestService,
-    private readonly toolSessionService: ToolSessionLinkService
+    private readonly toolSessionService: ToolSessionLinkService,
+    private readonly feedEventService: CollabFeedEventService
   ) {}
 
   start(input: StartToolRunInput): RunRecord {
@@ -67,6 +69,23 @@ export class ToolRunService {
           input.toolSessionId,
           `NEED_USER_INPUT created: ${interaction.interactionRequestId}`
         );
+      },
+      onRunTerminated: (event) => {
+        const isPaused = event.reason === "STOPPED";
+        const isFailed = !isPaused && (event.exitCode ?? 0) !== 0;
+        this.feedEventService.appendStatusEvent({
+          collabSessionId: input.collabSessionId,
+          eventType: isPaused ? "RUN_PAUSED" : isFailed ? "RUN_FAILED" : "RUN_DONE",
+          runId,
+          toolSessionId: input.toolSessionId,
+          provider: input.provider,
+          summary: isPaused
+            ? `Run ${runId} paused`
+            : isFailed
+              ? `Run ${runId} failed with exit code ${event.exitCode ?? -1}`
+              : `Run ${runId} completed`,
+          sourceEventKey: `status:${isPaused ? "run_paused" : isFailed ? "run_failed" : "run_done"}:${runId}`
+        });
       }
     });
 
@@ -74,6 +93,22 @@ export class ToolRunService {
       input.toolSessionId,
       `Run ${record.runId} started by ${input.provider}`
     );
+    this.feedEventService.upsertToolSessionCard({
+      collabSessionId: input.collabSessionId,
+      toolSessionId: input.toolSessionId,
+      provider: input.provider,
+      summary150: `Run ${record.runId} started by ${input.provider}`,
+      runId: record.runId
+    });
+    this.feedEventService.appendStatusEvent({
+      collabSessionId: input.collabSessionId,
+      eventType: "RUN_STARTED",
+      runId: record.runId,
+      toolSessionId: input.toolSessionId,
+      provider: input.provider,
+      summary: `Run ${record.runId} started`,
+      sourceEventKey: `status:run_started:${record.runId}`
+    });
 
     return record;
   }

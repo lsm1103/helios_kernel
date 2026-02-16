@@ -1,3 +1,8 @@
+## Status
+
+- Implementation: `NOT_STARTED` (as of 2026-02-15)
+- Notes: This capability is specified but not yet implemented in current API/UI code.
+
 ## ADDED Requirements
 
 ### Requirement: 技术问答 MUST 支持规则区/API 文档检索

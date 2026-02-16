@@ -1,20 +1,82 @@
 {
   "pages": {
-    "/tools/[toolSessionId]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/tools/[toolSessionId]/page.js"
+    "/_not-found/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/app/_not-found/page-0648021346a7e613.js"
     ],
     "/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/layout.css",
-      "static/chunks/app/layout.js"
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/css/aea50adef21e97ce.css",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/609-67d780826da59ca3.js",
+      "static/chunks/app/layout-a77707e707115f01.js"
     ],
-    "/_not-found/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+    "/sessions/[collabSessionId]/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/259-f3f57f7d937ac9e5.js",
+      "static/chunks/app/sessions/[collabSessionId]/page-91bec705f62adaaf.js"
+    ],
+    "/settings/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/609-67d780826da59ca3.js",
+      "static/chunks/app/settings/page-606e0163bcf596ca.js"
+    ],
+    "/tasks/[taskId]/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/app/tasks/[taskId]/page-46e8d3273dbe8a3e.js"
+    ],
+    "/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/app/page-5531c8d3ed2d3801.js"
+    ],
+    "/sessions/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/461-fa7334bc8e11b431.js",
+      "static/chunks/app/sessions/page-93f502539a965ebf.js"
+    ],
+    "/settings/lark/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/609-67d780826da59ca3.js",
+      "static/chunks/app/settings/lark/page-03cab84e1f946935.js"
+    ],
+    "/tools/[toolSessionId]/page": [
+      "static/chunks/webpack-c105cf7135d99ba2.js",
+      "static/chunks/1dd3208c-a0e577ee0de7aaf1.js",
+      "static/chunks/528-5f05a067e4c76c62.js",
+      "static/chunks/main-app-f7a7b383398f61bf.js",
+      "static/chunks/113-b8e95334e2f1c524.js",
+      "static/chunks/461-fa7334bc8e11b431.js",
+      "static/chunks/app/tools/[toolSessionId]/page-6339f380fb45e98e.js"
     ]
   }
 }

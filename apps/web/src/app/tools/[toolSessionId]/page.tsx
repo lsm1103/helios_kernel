@@ -8,7 +8,6 @@ import { getJson, postJson } from "../../../lib/api-client";
 import { useI18n } from "../../../lib/i18n";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Card, CardContent } from "../../../components/ui/card";
 
 type ToolProvider = "codex" | "claude_code";
 type ToolSessionSource = "COLLAB" | "USER_OPENED";
@@ -133,7 +132,7 @@ export default function ToolSessionPage() {
   const [linkedSessions, setLinkedSessions] = useState<LinkedSession[]>([]);
   const [localSessions, setLocalSessions] = useState<LocalSession[]>([]);
   const [selected, setSelected] = useState<SelectedSession | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [importStatus, setImportStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -377,11 +376,15 @@ export default function ToolSessionPage() {
             <p className="text-sm text-muted-foreground">{text.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={sourceFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setSourceFilter("all")}>
+            <Button
+              variant={sourceFilter === "all" && providerFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setSourceFilter("all");
+                setProviderFilter("all");
+              }}
+            >
               {text.sourceAll}
-            </Button>
-            <Button variant={sourceFilter === "local" ? "default" : "outline"} size="sm" onClick={() => setSourceFilter("local")}>
-              {text.sourceLocal}
             </Button>
             <Button variant={sourceFilter === "linked" ? "default" : "outline"} size="sm" onClick={() => setSourceFilter("linked")}>
               {text.sourceLinked}
@@ -392,9 +395,6 @@ export default function ToolSessionPage() {
             <Button variant={providerFilter === "claude_code" ? "default" : "outline"} size="sm" onClick={() => setProviderFilter("claude_code")}>
               {text.claude}
             </Button>
-            <Button variant={providerFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setProviderFilter("all")}>
-              {text.all}
-            </Button>
             <Button variant="outline" size="sm" onClick={() => void refreshAll()}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               {text.refresh}
@@ -402,8 +402,7 @@ export default function ToolSessionPage() {
           </div>
         </div>
 
-        <Card>
-          <CardContent className="space-y-4">
+        <div className="space-y-4">
             {importStatus ? <p className="text-xs text-muted-foreground">{importStatus}</p> : null}
 
             {filteredSessions.length === 0 ? <p className="text-sm text-muted-foreground">{text.emptyList}</p> : null}
@@ -493,8 +492,7 @@ export default function ToolSessionPage() {
                 </div>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {drawerLayer}

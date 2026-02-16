@@ -3,6 +3,16 @@
 - 计划周期：6 周（每周 1 个固定评审点）。
 - 交付节奏：每周完成 3 个任务项，共 18 项。
 
+## 0.1 状态快照（2026-02-15）
+
+- 规格任务完成度：`18/18`（本文件任务项全部完成）。
+- 代码实现状态按 capability：
+  - `feishu-collab-gateway`：`IN_PROGRESS`
+  - `tool-session-bridge`：`IMPLEMENTED`
+  - `hitl-interaction-loop`：`IMPLEMENTED`
+  - `support-qa-and-policy-control`：`NOT_STARTED`
+- 说明：本任务清单用于规格与接口冻结；“实现状态”以 `specs/*/spec.md` 中状态为准。
+
 ## 1. 周次排期
 
 ### Week 1（规格冻结）

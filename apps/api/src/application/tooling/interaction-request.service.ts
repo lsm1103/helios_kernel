@@ -13,6 +13,7 @@ import {
 } from "../../infrastructure/persistence/sqlite/repositories/interaction-requests.repository";
 import { ToolSessionLinkService } from "./tool-session-link.service";
 import { PtyRunManager } from "../../infrastructure/tool-runners/pty-run-manager";
+import { CollabFeedEventService } from "../session/collab-feed-event.service";
 
 interface CreateInteractionInput {
   collabSessionId: string;
@@ -38,14 +39,15 @@ export class InteractionRequestService {
   constructor(
     private readonly repo: InteractionRequestsRepository,
     private readonly toolSessionService: ToolSessionLinkService,
-    private readonly runManager: PtyRunManager
+    private readonly runManager: PtyRunManager,
+    private readonly feedEventService: CollabFeedEventService
   ) {}
 
   create(input: CreateInteractionInput): InteractionRequestRecord {
     const now = new Date();
     const timeoutMinutes = input.timeoutMinutes ?? 15;
 
-    return this.repo.create({
+    const created = this.repo.create({
       interactionRequestId: randomUUID(),
       collabSessionId: input.collabSessionId,
       toolSessionId: input.toolSessionId,
@@ -56,6 +58,18 @@ export class InteractionRequestService {
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + timeoutMinutes * 60_000).toISOString()
     });
+
+    this.feedEventService.appendHitlRequestCard({
+      collabSessionId: created.collabSessionId,
+      interactionRequestId: created.interactionRequestId,
+      runId: created.runId,
+      prompt: created.prompt,
+      options: created.options,
+      expiresAt: created.expiresAt,
+      ts: created.createdAt
+    });
+
+    return created;
   }
 
   listPending(filters?: {
@@ -118,6 +132,10 @@ export class InteractionRequestService {
       answerValue: input.answerValue
     };
     this.repo.markResolved(request.interactionRequestId, answer);
+    this.feedEventService.updateActionCardStatus(
+      `action:hitl_request:${request.interactionRequestId}`,
+      "RESOLVED"
+    );
     this.repo.consumeIdempotencyKey(idemKey);
 
     this.toolSessionService.appendSummary(
@@ -183,6 +201,10 @@ export class InteractionRequestService {
       answerType: "text",
       answerValue: input.stdinText.trim()
     });
+    this.feedEventService.updateActionCardStatus(
+      `action:hitl_request:${input.interactionRequestId}`,
+      "RESOLVED"
+    );
     this.repo.consumeIdempotencyKey(input.idempotencyKey);
 
     return {

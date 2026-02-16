@@ -1,3 +1,8 @@
+## Status
+
+- Implementation: `IMPLEMENTED` (as of 2026-02-15)
+- Notes: Multiple tool-session binding, list/use/peek, summary updates, run mapping, and local Codex/Claude private-session scanning are wired in API + web UI.
+
 ## ADDED Requirements
 
 ### Requirement: 单协作会话 MUST 支持多个工具会话绑定

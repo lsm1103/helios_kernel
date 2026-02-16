@@ -10,6 +10,7 @@
 - 新增工具会话桥接能力，支持单协作会话绑定多个工具 session，并保持协作轨/工具轨隔离。
 - 新增 HITL 交互闭环能力，覆盖交互请求、飞书卡片回调、stdin 回灌和状态机。
 - 新增技术支持与策略控制能力，覆盖规则区/API 问答、命令白名单和高风险审批审计。
+- 新增协作会话工作台能力，规范会话列表、创建、进入聊天、详情查看与归档闭环。
 
 ## Capabilities
 
@@ -18,6 +19,7 @@
 - `tool-session-bridge`: 多工具 session 绑定、切换查看与摘要回传。
 - `hitl-interaction-loop`: 工具请求人工输入的飞书闭环与幂等回灌。
 - `support-qa-and-policy-control`: 技术问答、命令白名单、高风险审批与审计。
+- `collab-session-workspace`: 协作会话列表与聊天工作台，承载会话管理与工具卡片查看。
 
 ### Modified Capabilities
 - None.

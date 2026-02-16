@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:session-logic": "node --test --experimental-strip-types src/lib/session-workspace-logic.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
