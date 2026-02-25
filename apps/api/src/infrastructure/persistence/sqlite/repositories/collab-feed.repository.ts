@@ -28,6 +28,14 @@ export interface FeedCardItemRecord {
 
 export type MixedFeedItemRecord = FeedTextItemRecord | FeedCardItemRecord;
 
+export interface LatestRunStateRecord {
+  runId?: string;
+  status: "RUN_STARTED" | "RUN_PAUSED" | "RUN_DONE" | "RUN_FAILED" | "UNKNOWN";
+  provider?: "codex" | "claude_code";
+  toolSessionId?: string;
+  updatedAt?: string;
+}
+
 @Injectable()
 export class CollabFeedRepository {
   constructor(private readonly sqlite: SqliteDbService) {}
@@ -242,6 +250,70 @@ export class CollabFeedRepository {
       items: mapped.slice(0, safeLimit),
       hasMore: mapped.length > safeLimit
     };
+  }
+
+  getLatestRunStateBySession(collabSessionId: string): LatestRunStateRecord {
+    const row = this.sqlite.connection
+      .prepare(
+        `SELECT card_json, ts
+         FROM collab_feed_items
+         WHERE collab_session_id = ?
+           AND kind = 'card'
+           AND card_type = 'status_event'
+           AND json_extract(card_json, '$.payload.event_type') IN (
+             'RUN_STARTED', 'RUN_PAUSED', 'RUN_DONE', 'RUN_FAILED'
+           )
+         ORDER BY ts DESC, item_id DESC
+         LIMIT 1`
+      )
+      .get(collabSessionId) as { card_json?: unknown; ts?: unknown } | undefined;
+
+    if (!row || typeof row.card_json !== "string") {
+      return {
+        status: "UNKNOWN"
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(row.card_json) as {
+        payload?: {
+          event_type?: unknown;
+          run_id?: unknown;
+          provider?: unknown;
+          tool_session_id?: unknown;
+        };
+      };
+
+      const statusRaw = parsed?.payload?.event_type;
+      const status =
+        statusRaw === "RUN_STARTED" ||
+        statusRaw === "RUN_PAUSED" ||
+        statusRaw === "RUN_DONE" ||
+        statusRaw === "RUN_FAILED"
+          ? statusRaw
+          : "UNKNOWN";
+
+      const providerRaw = parsed?.payload?.provider;
+      const provider =
+        providerRaw === "codex" || providerRaw === "claude_code"
+          ? providerRaw
+          : undefined;
+
+      return {
+        status,
+        runId: typeof parsed?.payload?.run_id === "string" ? parsed.payload.run_id : undefined,
+        provider,
+        toolSessionId:
+          typeof parsed?.payload?.tool_session_id === "string"
+            ? parsed.payload.tool_session_id
+            : undefined,
+        updatedAt: typeof row.ts === "string" ? row.ts : undefined
+      };
+    } catch {
+      return {
+        status: "UNKNOWN"
+      };
+    }
   }
 
   getCardActionResponse(idempotencyKey: string): Record<string, unknown> | undefined {

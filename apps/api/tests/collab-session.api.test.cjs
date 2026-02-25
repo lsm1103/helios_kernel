@@ -10,6 +10,8 @@ require("reflect-metadata");
 const { NestFactory } = require("@nestjs/core");
 const { AppModule } = require("../dist/app.module");
 const { SessionController } = require("../dist/interfaces/http/controllers/session.controller");
+const { CollabFeedController } = require("../dist/interfaces/http/controllers/collab-feed.controller");
+const { CollabFeedEventService } = require("../dist/application/session/collab-feed-event.service");
 
 test("collab session lifecycle api", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "helios-collab-api-"));
@@ -19,6 +21,8 @@ test("collab session lifecycle api", async () => {
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
   const controller = app.get(SessionController);
+  const feedController = app.get(CollabFeedController);
+  const feedEventService = app.get(CollabFeedEventService);
 
   try {
     const created = await controller.create({
@@ -35,11 +39,33 @@ test("collab session lifecycle api", async () => {
     assert.equal(Array.isArray(listActive), true);
     assert.equal(listActive.length, 1);
     assert.equal(listActive[0].collabSessionId, collabSessionId);
+    assert.equal(listActive[0].lastMessagePreview20, "Choose tool");
+
+    await feedController.appendText(collabSessionId, {
+      role: "user",
+      content: "abcdefghijklmnopqrstuvwxyz"
+    });
+    const listWithMessage = await controller.list(undefined);
+    assert.equal(listWithMessage[0].lastMessagePreview20, "abcdefghijklmnopqrst...");
 
     const detail = await controller.detail(collabSessionId);
     assert.equal(detail.name, "Session API Test");
     assert.equal(detail.workspacePath, "/tmp/project-a");
     assert.equal(detail.metadata.source, "test");
+    assert.equal(detail.lastMessagePreview20, "abcdefghijklmnopqrst...");
+
+    feedEventService.appendStatusEvent({
+      collabSessionId,
+      eventType: "RUN_STARTED",
+      runId: "run_test_1",
+      provider: "codex",
+      toolSessionId: "toolsess_test_1",
+      sourceEventKey: "status:run_started:run_test_1"
+    });
+    const workspaceState = await controller.workspaceState(collabSessionId);
+    assert.equal(workspaceState.session.collabSessionId, collabSessionId);
+    assert.equal(workspaceState.latestRunState.status, "RUN_STARTED");
+    assert.equal(workspaceState.latestRunState.runId, "run_test_1");
 
     const archived = await controller.archive(collabSessionId, { actor: "test_runner", reason: "done" });
     assert.equal(archived.status, "ARCHIVED");

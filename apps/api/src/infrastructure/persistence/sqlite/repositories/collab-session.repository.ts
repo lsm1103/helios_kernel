@@ -15,6 +15,10 @@ export interface CollabSessionRecord {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;
+  lastMessagePreview20: string;
+  lastMessageTs?: string;
+  lastMessageKind?: "text" | "card";
+  lastMessageRole?: "user" | "assistant" | "system";
 }
 
 interface CollabSessionAuditEvent {
@@ -72,19 +76,39 @@ export class CollabSessionRepository {
     const includeArchived = options?.includeArchived ?? false;
     const stmt = this.sqlite.connection.prepare(`
       SELECT
-        collab_session_id,
-        name,
-        description,
-        status,
-        workspace_path,
-        active_tool,
-        metadata_json,
-        created_at,
-        updated_at,
-        archived_at
-      FROM collab_sessions
-      ${includeArchived ? "" : "WHERE status = 'ACTIVE'"}
-      ORDER BY updated_at DESC, created_at DESC
+        cs.collab_session_id,
+        cs.name,
+        cs.description,
+        cs.status,
+        cs.workspace_path,
+        cs.active_tool,
+        cs.metadata_json,
+        cs.created_at,
+        cs.updated_at,
+        cs.archived_at,
+        fi.kind AS last_message_kind,
+        fi.role AS last_message_role,
+        fi.ts AS last_message_ts,
+        CASE
+          WHEN fi.kind = 'text' THEN COALESCE(fi.content, '')
+          WHEN fi.kind = 'card' THEN COALESCE(
+            json_extract(fi.card_json, '$.payload.summary'),
+            json_extract(fi.card_json, '$.title'),
+            ''
+          )
+          ELSE ''
+        END AS last_message_raw
+      FROM collab_sessions cs
+      LEFT JOIN collab_feed_items fi
+        ON fi.item_id = (
+          SELECT item_id
+          FROM collab_feed_items
+          WHERE collab_session_id = cs.collab_session_id
+          ORDER BY ts DESC, item_id DESC
+          LIMIT 1
+        )
+      ${includeArchived ? "" : "WHERE cs.status = 'ACTIVE'"}
+      ORDER BY cs.updated_at DESC, cs.created_at DESC
     `);
 
     return stmt.all().map((row) => this.map(row as Record<string, unknown>));
@@ -93,18 +117,38 @@ export class CollabSessionRepository {
   getById(collabSessionId: string): CollabSessionRecord | undefined {
     const stmt = this.sqlite.connection.prepare(`
       SELECT
-        collab_session_id,
-        name,
-        description,
-        status,
-        workspace_path,
-        active_tool,
-        metadata_json,
-        created_at,
-        updated_at,
-        archived_at
-      FROM collab_sessions
-      WHERE collab_session_id = ?
+        cs.collab_session_id,
+        cs.name,
+        cs.description,
+        cs.status,
+        cs.workspace_path,
+        cs.active_tool,
+        cs.metadata_json,
+        cs.created_at,
+        cs.updated_at,
+        cs.archived_at,
+        fi.kind AS last_message_kind,
+        fi.role AS last_message_role,
+        fi.ts AS last_message_ts,
+        CASE
+          WHEN fi.kind = 'text' THEN COALESCE(fi.content, '')
+          WHEN fi.kind = 'card' THEN COALESCE(
+            json_extract(fi.card_json, '$.payload.summary'),
+            json_extract(fi.card_json, '$.title'),
+            ''
+          )
+          ELSE ''
+        END AS last_message_raw
+      FROM collab_sessions cs
+      LEFT JOIN collab_feed_items fi
+        ON fi.item_id = (
+          SELECT item_id
+          FROM collab_feed_items
+          WHERE collab_session_id = cs.collab_session_id
+          ORDER BY ts DESC, item_id DESC
+          LIMIT 1
+        )
+      WHERE cs.collab_session_id = ?
       LIMIT 1
     `);
 
@@ -239,7 +283,38 @@ export class CollabSessionRepository {
       metadata: parsedMetadata,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
-      archivedAt
+      archivedAt,
+      lastMessagePreview20: this.toPreview20(row.last_message_raw),
+      lastMessageTs: typeof row.last_message_ts === "string" ? row.last_message_ts : undefined,
+      lastMessageKind: this.parseLastMessageKind(row.last_message_kind),
+      lastMessageRole: this.parseLastMessageRole(row.last_message_role)
     };
+  }
+
+  private toPreview20(raw: unknown): string {
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) {
+      return "-";
+    }
+
+    const chars = Array.from(text);
+    if (chars.length <= 20) {
+      return text;
+    }
+    return `${chars.slice(0, 20).join("")}...`;
+  }
+
+  private parseLastMessageKind(raw: unknown): "text" | "card" | undefined {
+    if (raw === "text" || raw === "card") {
+      return raw;
+    }
+    return undefined;
+  }
+
+  private parseLastMessageRole(raw: unknown): "user" | "assistant" | "system" | undefined {
+    if (raw === "user" || raw === "assistant" || raw === "system") {
+      return raw;
+    }
+    return undefined;
   }
 }

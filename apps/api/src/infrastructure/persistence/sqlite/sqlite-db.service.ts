@@ -73,12 +73,6 @@ export class SqliteDbService implements OnModuleDestroy {
 
       CREATE INDEX IF NOT EXISTS idx_collab_feed_items_session_ts
       ON collab_feed_items(collab_session_id, ts DESC);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_feed_items_card_id_unique
-      ON collab_feed_items(card_id)
-      WHERE card_id IS NOT NULL;
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_feed_items_source_event_key_unique
-      ON collab_feed_items(source_event_key)
-      WHERE source_event_key IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS collab_card_action_idempotency (
         idempotency_key TEXT PRIMARY KEY,

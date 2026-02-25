@@ -35,76 +35,111 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { locale, setLocale, dict } = useI18n();
+  const isSessionsRoute = pathname.startsWith("/sessions");
 
   function toggleLocale() {
     setLocale(locale === "zh" ? "en" : "zh");
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-mesh-gradient">
-      <div className="mx-auto flex h-screen w-full max-w-[1600px] px-4 py-4 md:px-6 lg:px-8">
-        <aside className="hidden h-full w-72 shrink-0 flex-col overflow-y-auto rounded-3xl border bg-white/80 p-5 shadow-soft backdrop-blur xl:flex">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Bot size={20} />
+    <div className="h-screen overflow-hidden bg-[#d7d7dc]">
+      <div className="h-screen w-full p-2 md:p-3">
+        <div
+          className={cn(
+            "mx-auto flex h-full overflow-hidden bg-[#f5f5f7]",
+            isSessionsRoute
+              ? "max-w-none rounded-none border-0 shadow-none"
+              : "max-w-[1800px] rounded-2xl border border-zinc-300 shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
+          )}
+        >
+          <aside className="hidden w-64 shrink-0 flex-col border-r border-zinc-300 bg-[#ececef] md:flex">
+            <div className="shrink-0 border-b border-zinc-300 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-zinc-900 text-white">
+                  <Bot size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    {dict.shell.productName}
+                  </p>
+                  <p className="truncate text-sm font-semibold text-zinc-900">{dict.shell.productTagline}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <Button variant="outline" size="sm" className="h-8" onClick={toggleLocale}>
+                  <Languages className="mr-1 h-3.5 w-3.5" />
+                  {dict.shell.languageToggle}
+                </Button>
+                <Badge variant="secondary">{dict.shell.live}</Badge>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">{dict.shell.productName}</p>
-              <p className="text-lg font-extrabold">{dict.shell.productTagline}</p>
-            </div>
-          </div>
 
-          <div className="mt-6 rounded-xl border bg-background/80 p-3">
-            <Badge variant="secondary">{dict.shell.environment}</Badge>
-            <p className="mt-2 text-sm text-muted-foreground">{dict.shell.environmentValue}</p>
-          </div>
+            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              {navItems.map((item) => {
+                const active = item.exact ? pathname === item.href : pathname.startsWith(item.href.split("/demo-")[0]);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
+                      active
+                        ? "border border-zinc-300 bg-white text-zinc-900 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                        : "text-zinc-600 hover:bg-white/80 hover:text-zinc-900"
+                    )}
+                  >
+                    <Icon size={15} className={cn(active ? "text-zinc-900" : "text-zinc-500")} />
+                    <span>{dict.shell.nav[item.key as keyof typeof dict.shell.nav]}</span>
+                  </Link>
+                );
+              })}
+            </nav>
 
-          <div className="mt-3 flex items-center gap-2 rounded-xl border bg-background/70 p-3">
-            <Button variant="outline" size="sm" onClick={toggleLocale}>
-              <Languages className="mr-2 h-4 w-4" />
-              {dict.shell.languageToggle}
-            </Button>
-            <Badge>{dict.shell.live}</Badge>
-          </div>
-
-          <nav className="mt-8 flex flex-col gap-1">
-            {navItems.map((item) => {
-              const active = item.exact ? pathname === item.href : pathname.startsWith(item.href.split("/demo-")[0]);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <Icon size={16} className={cn("transition", active ? "text-primary-foreground" : "text-muted-foreground")} />
-                  <span>{dict.shell.nav[item.key as keyof typeof dict.shell.nav]}</span>
+            <div className="shrink-0 border-t border-zinc-300 px-4 py-3">
+              <p className="text-xs text-zinc-500">{dict.shell.environment}</p>
+              <p className="mt-0.5 truncate text-sm font-medium text-zinc-800">{dict.shell.environmentValue}</p>
+              <Button className="mt-3 w-full" variant="outline" asChild>
+                <Link href="/settings">
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  {dict.shell.openSettings}
                 </Link>
-              );
-            })}
-          </nav>
+              </Button>
+            </div>
+          </aside>
 
-          <div className="mt-auto rounded-xl border bg-background/70 p-4">
-            <p className="text-sm font-semibold">{dict.shell.bridgeTitle}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{dict.shell.bridgeDesc}</p>
-            <Button className="mt-3 w-full" variant="outline" asChild>
-              <Link href="/settings">
-                <Settings2 className="mr-2 h-4 w-4" />
-                {dict.shell.openSettings}
-              </Link>
-            </Button>
+          <div className="flex min-w-0 flex-1 flex-col bg-[#fafafa]">
+            <header className="shrink-0 border-b border-zinc-200 bg-[#f7f7f9] px-3 py-2 md:hidden">
+              <div className="flex items-center gap-2 overflow-x-auto">
+                {navItems.map((item) => {
+                  const active = item.exact ? pathname === item.href : pathname.startsWith(item.href.split("/demo-")[0]);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs",
+                        active ? "border-zinc-300 bg-white text-zinc-900" : "border-transparent text-zinc-600"
+                      )}
+                    >
+                      <Icon size={13} />
+                      <span>{dict.shell.nav[item.key as keyof typeof dict.shell.nav]}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </header>
+
+            <main
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto bg-white",
+                isSessionsRoute ? "rounded-none p-0" : "p-3 md:p-4"
+              )}
+            >
+              {children}
+            </main>
           </div>
-        </aside>
-
-        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden xl:pl-6">
-          <main className="min-h-0 flex-1 overflow-y-auto rounded-2xl border bg-white/90 p-4 shadow-soft backdrop-blur md:p-6">
-            {children}
-          </main>
         </div>
       </div>
     </div>

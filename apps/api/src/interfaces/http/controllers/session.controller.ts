@@ -47,6 +47,11 @@ export class SessionController {
     return this.collabSessionService.getById(collabSessionId);
   }
 
+  @Get(":collabSessionId/workspace-state")
+  workspaceState(@Param("collabSessionId") collabSessionId: string) {
+    return this.collabSessionService.workspaceState(collabSessionId);
+  }
+
   @Post(":collabSessionId/archive")
   archive(
     @Param("collabSessionId") collabSessionId: string,

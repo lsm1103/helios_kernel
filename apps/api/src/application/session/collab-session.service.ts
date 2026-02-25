@@ -5,6 +5,11 @@ import {
   CollabSessionRepository,
   CollabSessionTool
 } from "../../infrastructure/persistence/sqlite/repositories/collab-session.repository";
+import {
+  CollabFeedRepository,
+  LatestRunStateRecord
+} from "../../infrastructure/persistence/sqlite/repositories/collab-feed.repository";
+import { ToolSessionLinkService } from "../tooling/tool-session-link.service";
 import { CollabFeedEventService } from "./collab-feed-event.service";
 
 interface CreateCollabSessionInput {
@@ -20,7 +25,9 @@ interface CreateCollabSessionInput {
 export class CollabSessionService {
   constructor(
     private readonly repo: CollabSessionRepository,
-    private readonly feedEventService: CollabFeedEventService
+    private readonly feedEventService: CollabFeedEventService,
+    private readonly toolSessionService: ToolSessionLinkService,
+    private readonly feedRepo: CollabFeedRepository
   ) {}
 
   create(input: CreateCollabSessionInput): CollabSessionRecord {
@@ -36,7 +43,8 @@ export class CollabSessionService {
       activeTool: input.activeTool,
       metadata: input.metadata ?? {},
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      lastMessagePreview20: "-"
     };
 
     const created = this.repo.create(record, {
@@ -101,5 +109,21 @@ export class CollabSessionService {
     });
 
     return result;
+  }
+
+  workspaceState(collabSessionId: string): {
+    session: CollabSessionRecord;
+    linkedToolSessions: ReturnType<ToolSessionLinkService["list"]>;
+    latestRunState: LatestRunStateRecord;
+  } {
+    const session = this.getById(collabSessionId);
+    const linkedToolSessions = this.toolSessionService.list(collabSessionId);
+    const latestRunState = this.feedRepo.getLatestRunStateBySession(collabSessionId);
+
+    return {
+      session,
+      linkedToolSessions,
+      latestRunState
+    };
   }
 }

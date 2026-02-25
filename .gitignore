@@ -9,3 +9,4 @@ package-lock.json
 **/.helios/
 
 .DS_Store
+apps/web/.next/
