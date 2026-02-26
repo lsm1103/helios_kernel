@@ -174,6 +174,27 @@ export class CollabFeedEventService {
     };
   }
 
+  appendOrchestratorSummary(input: {
+    collabSessionId: string;
+    content: string;
+    ts?: string;
+  }): FeedItem {
+    const row = this.feedRepo.appendText({
+      collabSessionId: input.collabSessionId,
+      role: "assistant",
+      content: input.content.trim(),
+      ts: input.ts
+    });
+
+    return {
+      id: row.id,
+      kind: "text",
+      role: row.role,
+      content: row.content,
+      ts: row.ts
+    };
+  }
+
   private buildStatusCardId(input: StatusEventInput): string {
     const suffix =
       input.runId ??

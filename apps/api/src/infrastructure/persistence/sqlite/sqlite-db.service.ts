@@ -114,6 +114,9 @@ export class SqliteDbService implements OnModuleDestroy {
         tool_session_id TEXT NOT NULL,
         run_id TEXT NOT NULL,
         prompt TEXT NOT NULL,
+        raw_prompt TEXT,
+        user_prompt TEXT,
+        orchestrator_degraded INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL,
         options_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -127,6 +130,32 @@ export class SqliteDbService implements OnModuleDestroy {
         key TEXT PRIMARY KEY,
         consumed_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS orchestrator_llm_settings (
+        settings_id TEXT PRIMARY KEY,
+        primary_provider TEXT NOT NULL,
+        fallback_providers_json TEXT NOT NULL DEFAULT '[]',
+        model TEXT NOT NULL,
+        base_url TEXT NOT NULL DEFAULT '',
+        api_key_encrypted TEXT,
+        timeout_ms INTEGER NOT NULL,
+        temperature REAL NOT NULL,
+        max_tokens INTEGER NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS orchestrator_llm_audit_events (
+        event_id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        result TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_orchestrator_llm_audit_events_created
+      ON orchestrator_llm_audit_events(created_at DESC);
     `);
 
     this.ensureColumn("collab_sessions", "description", "TEXT NOT NULL DEFAULT ''");
@@ -142,6 +171,9 @@ export class SqliteDbService implements OnModuleDestroy {
     this.ensureColumn("collab_feed_items", "card_status", "TEXT");
     this.ensureColumn("collab_feed_items", "card_json", "TEXT");
     this.ensureColumn("collab_feed_items", "source_event_key", "TEXT");
+    this.ensureColumn("interaction_requests", "raw_prompt", "TEXT");
+    this.ensureColumn("interaction_requests", "user_prompt", "TEXT");
+    this.ensureColumn("interaction_requests", "orchestrator_degraded", "INTEGER NOT NULL DEFAULT 0");
 
     this.db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_collab_feed_items_card_id_unique

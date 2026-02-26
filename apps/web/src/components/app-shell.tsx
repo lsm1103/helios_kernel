@@ -44,14 +44,7 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen overflow-hidden bg-[#d7d7dc]">
       <div className="h-screen w-full p-2 md:p-3">
-        <div
-          className={cn(
-            "mx-auto flex h-full overflow-hidden bg-[#f5f5f7]",
-            isSessionsRoute
-              ? "max-w-none rounded-none border-0 shadow-none"
-              : "max-w-[1800px] rounded-2xl border border-zinc-300 shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
-          )}
-        >
+        <div className="mx-auto flex h-full max-w-[1800px] overflow-hidden rounded-2xl border border-zinc-300 bg-[#f5f5f7] shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
           <aside className="hidden w-64 shrink-0 flex-col border-r border-zinc-300 bg-[#ececef] md:flex">
             <div className="shrink-0 border-b border-zinc-300 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -62,15 +55,24 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
                   <p className="truncate text-xs font-semibold uppercase tracking-wide text-zinc-500">
                     {dict.shell.productName}
                   </p>
-                  <p className="truncate text-sm font-semibold text-zinc-900">{dict.shell.productTagline}</p>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-zinc-900">{dict.shell.productTagline}</p>
+                    <Badge variant="secondary" className="shrink-0">
+                      {dict.shell.live}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={toggleLocale}>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" className="h-8 w-full justify-center" onClick={toggleLocale}>
                   <Languages className="mr-1 h-3.5 w-3.5" />
                   {dict.shell.languageToggle}
                 </Button>
-                <Badge variant="secondary">{dict.shell.live}</Badge>
+                <div className="flex h-8 items-center rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium text-zinc-700">
+                  <span className="truncate">
+                    {dict.shell.environment}: {dict.shell.environmentValue}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -95,17 +97,6 @@ function AppShellLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
-
-            <div className="shrink-0 border-t border-zinc-300 px-4 py-3">
-              <p className="text-xs text-zinc-500">{dict.shell.environment}</p>
-              <p className="mt-0.5 truncate text-sm font-medium text-zinc-800">{dict.shell.environmentValue}</p>
-              <Button className="mt-3 w-full" variant="outline" asChild>
-                <Link href="/settings">
-                  <Settings2 className="mr-2 h-4 w-4" />
-                  {dict.shell.openSettings}
-                </Link>
-              </Button>
-            </div>
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col bg-[#fafafa]">

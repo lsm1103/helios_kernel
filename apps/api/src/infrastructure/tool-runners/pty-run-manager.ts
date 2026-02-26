@@ -48,8 +48,9 @@ interface StartRunInput {
   args: string[];
   cwd?: string;
   env?: Record<string, string>;
-  onNeedUserInput?: (signal: NeedUserInputSignal) => void;
-  onRunTerminated?: (signal: RunTerminationSignal) => void;
+  onNeedUserInput?: (signal: NeedUserInputSignal) => void | Promise<void>;
+  onOutput?: (chunk: string) => void | Promise<void>;
+  onRunTerminated?: (signal: RunTerminationSignal) => void | Promise<void>;
 }
 
 type ManagedProcess =
@@ -69,7 +70,10 @@ export class PtyRunManager {
   private readonly outputs: RunOutputRecord[] = [];
   private readonly processes = new Map<string, ManagedProcess>();
   private readonly lineBuffers = new Map<string, string>();
-  private readonly terminationHandlers = new Map<string, (signal: RunTerminationSignal) => void>();
+  private readonly terminationHandlers = new Map<
+    string,
+    (signal: RunTerminationSignal) => void | Promise<void>
+  >();
 
   startRun(input: StartRunInput): RunRecord {
     const mergedEnv = {
@@ -107,6 +111,9 @@ export class PtyRunManager {
         receivedAt: new Date().toISOString()
       });
 
+      if (input.onOutput) {
+        void Promise.resolve(input.onOutput(chunk));
+      }
       this.processOutput(record.runId, chunk, input.onNeedUserInput);
     });
 
@@ -190,7 +197,7 @@ export class PtyRunManager {
   private processOutput(
     runId: string,
     chunk: string,
-    onNeedUserInput?: (signal: NeedUserInputSignal) => void
+    onNeedUserInput?: (signal: NeedUserInputSignal) => void | Promise<void>
   ): void {
     const existingBuffer = this.lineBuffers.get(runId) ?? "";
     const merged = `${existingBuffer}${chunk}`;
@@ -201,7 +208,7 @@ export class PtyRunManager {
     for (const line of lines) {
       const signal = this.parseNeedUserInputSignal(line);
       if (signal && onNeedUserInput) {
-        onNeedUserInput(signal);
+        void Promise.resolve(onNeedUserInput(signal));
       }
     }
   }
@@ -359,6 +366,8 @@ export class PtyRunManager {
       return;
     }
     this.terminationHandlers.delete(signal.runId);
-    handler(signal);
+    void Promise.resolve(handler(signal)).catch(() => {
+      // Keep run lifecycle resilient even if summary callbacks fail.
+    });
   }
 }

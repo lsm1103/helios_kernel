@@ -2,8 +2,10 @@ import { Module } from "@nestjs/common";
 import { ToolSessionController } from "./interfaces/http/controllers/tool-session.controller";
 import { SessionController } from "./interfaces/http/controllers/session.controller";
 import { CollabFeedController } from "./interfaces/http/controllers/collab-feed.controller";
+import { OrchestratorLlmController } from "./interfaces/http/controllers/orchestrator-llm.controller";
 import { LarkInteractionWebhook } from "./interfaces/webhook/lark-interaction.webhook";
 import { SocialAppWebhook } from "./interfaces/webhook/social-app.webhook";
+import { OrchestratorLlmService } from "./application/orchestrator/orchestrator-llm.service";
 import { ToolSessionLinkService } from "./application/tooling/tool-session-link.service";
 import { InteractionRequestService } from "./application/tooling/interaction-request.service";
 import { ToolRunService } from "./application/tooling/tool-run.service";
@@ -14,22 +16,28 @@ import { ToolSessionLinkRepository } from "./infrastructure/persistence/sqlite/r
 import { InteractionRequestsRepository } from "./infrastructure/persistence/sqlite/repositories/interaction-requests.repository";
 import { CollabSessionRepository } from "./infrastructure/persistence/sqlite/repositories/collab-session.repository";
 import { CollabFeedRepository } from "./infrastructure/persistence/sqlite/repositories/collab-feed.repository";
+import { OrchestratorLlmRepository } from "./infrastructure/persistence/sqlite/repositories/orchestrator-llm.repository";
 import { PtyRunManager } from "./infrastructure/tool-runners/pty-run-manager";
 import { CodexAdapter } from "./infrastructure/tool-runners/codex.adapter";
 import { ClaudeAdapter } from "./infrastructure/tool-runners/claude.adapter";
 import { SqliteDbService } from "./infrastructure/persistence/sqlite/sqlite-db.service";
 import { LocalSessionScannerService } from "./infrastructure/tool-runners/local-session-scanner.service";
+import { OpenAiProvider } from "./infrastructure/llm/providers/openai.provider";
+import { AnthropicProvider } from "./infrastructure/llm/providers/anthropic.provider";
+import { VolcengineArkProvider } from "./infrastructure/llm/providers/volcengine-ark.provider";
 
 @Module({
   imports: [],
   controllers: [
     SessionController,
     CollabFeedController,
+    OrchestratorLlmController,
     ToolSessionController,
     LarkInteractionWebhook,
     SocialAppWebhook
   ],
   providers: [
+    OrchestratorLlmService,
     CollabSessionService,
     CollabFeedService,
     CollabFeedEventService,
@@ -40,11 +48,15 @@ import { LocalSessionScannerService } from "./infrastructure/tool-runners/local-
     CollabFeedRepository,
     ToolSessionLinkRepository,
     InteractionRequestsRepository,
+    OrchestratorLlmRepository,
     SqliteDbService,
     PtyRunManager,
     CodexAdapter,
     ClaudeAdapter,
-    LocalSessionScannerService
+    LocalSessionScannerService,
+    OpenAiProvider,
+    AnthropicProvider,
+    VolcengineArkProvider
   ]
 })
 export class AppModule {}

@@ -11,6 +11,7 @@ import { CollabSessionService } from "./collab-session.service";
 import { ToolSessionLinkService } from "../tooling/tool-session-link.service";
 import { InteractionRequestService } from "../tooling/interaction-request.service";
 import { CardActionResponse, CollabCard, CollabCardStatus, FeedItem } from "./collab-feed.types";
+import { OrchestratorLlmService } from "../orchestrator/orchestrator-llm.service";
 
 @Injectable()
 export class CollabFeedService {
@@ -19,7 +20,8 @@ export class CollabFeedService {
     private readonly collabSessionService: CollabSessionService,
     private readonly toolSessionService: ToolSessionLinkService,
     private readonly interactionService: InteractionRequestService,
-    private readonly interactionRepo: InteractionRequestsRepository
+    private readonly interactionRepo: InteractionRequestsRepository,
+    private readonly orchestratorService: OrchestratorLlmService
   ) {}
 
   listFeed(input: { collabSessionId: string; cursor?: string; limit?: number }): {
@@ -45,16 +47,29 @@ export class CollabFeedService {
     };
   }
 
-  appendText(input: {
+  async appendText(input: {
     collabSessionId: string;
     role: FeedTextRole;
     content: string;
-  }): FeedItem {
+  }): Promise<FeedItem> {
     const row = this.feedRepo.appendText({
       collabSessionId: input.collabSessionId,
       role: input.role,
       content: input.content.trim()
     });
+
+    if (input.role === "user" && input.content.trim().length > 0) {
+      const suggestion = await this.orchestratorService.suggestToolAndQuestions({
+        requirementText: input.content.trim()
+      });
+      if (suggestion.text.trim()) {
+        this.feedRepo.appendText({
+          collabSessionId: input.collabSessionId,
+          role: "assistant",
+          content: `[orchestrator:${suggestion.provider ?? "degraded"}] ${suggestion.text.trim()}`
+        });
+      }
+    }
 
     return {
       id: row.id,
@@ -172,11 +187,18 @@ export class CollabFeedService {
       sourceEventKey: `action:tool_select:${input.collabSessionId}`
     });
 
-    const item = this.appendText({
+    const row = this.feedRepo.appendText({
       collabSessionId: input.collabSessionId,
       role: "system",
       content: `Tool selected: ${provider}`
     });
+    const item: FeedItem = {
+      id: row.id,
+      kind: "text",
+      role: row.role,
+      content: row.content,
+      ts: row.ts
+    };
 
     return {
       ok: true,
@@ -289,11 +311,18 @@ export class CollabFeedService {
 
       this.feedRepo.updateCardStatus(input.card.card_id, "RESOLVED");
 
-      const item = this.appendText({
+      const row = this.feedRepo.appendText({
         collabSessionId: input.collabSessionId,
         role: "system",
         content: `HITL resolved: ${answer.trim()}`
       });
+      const item: FeedItem = {
+        id: row.id,
+        kind: "text",
+        role: row.role,
+        content: row.content,
+        ts: row.ts
+      };
 
       return {
         ok: true,

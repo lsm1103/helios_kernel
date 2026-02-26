@@ -61,6 +61,10 @@ type WorkspaceStateResponse = {
     toolSessionId?: string;
     updatedAt?: string;
   };
+  orchestrator?: {
+    provider: string;
+    model: string;
+  };
 };
 
 type RunRecord = {
@@ -287,7 +291,9 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
             latestRun: "最近运行",
             linkedSessions: "关联工具会话",
             noRun: "暂无运行状态",
-            noLinkedSession: "暂无关联工具会话"
+            noLinkedSession: "暂无关联工具会话",
+            orchestrator: "主编排",
+            runInactiveSaved: "当前运行已结束，消息已记录到协作会话。若需继续，请重新启动执行。"
           }
         : {
             title: "Collab Sessions",
@@ -345,7 +351,9 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
             latestRun: "Latest run",
             linkedSessions: "Linked tool sessions",
             noRun: "No run status",
-            noLinkedSession: "No linked tool sessions"
+            noLinkedSession: "No linked tool sessions",
+            orchestrator: "Orchestrator",
+            runInactiveSaved: "Run is no longer active. Your message was saved to the session. Start a new run to continue tool execution."
           },
     [locale]
   );
@@ -597,18 +605,38 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
   }
 
   async function sendMessage(): Promise<void> {
-    if (!selectedCollabSessionId || !activeRunId || !chatInput.trim()) {
+    if (!selectedCollabSessionId || !chatInput.trim()) {
       return;
     }
 
+    const collabSessionId = selectedCollabSessionId;
     const content = chatInput.trim();
     setChatInput("");
     try {
-      await appendFeedText(selectedCollabSessionId, "user", content);
-      await postJson(`/internal/tool-runs/${encodeURIComponent(activeRunId)}/stdin/raw`, {
-        stdin_text: `${content}\n`
-      });
-      await Promise.all([refreshSessions(), refreshFeed(selectedCollabSessionId)]);
+      await appendFeedText(collabSessionId, "user", content);
+
+      if (activeRunId) {
+        try {
+          await postJson(`/internal/tool-runs/${encodeURIComponent(activeRunId)}/stdin/raw`, {
+            stdin_text: `${content}\n`
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          const runInactive = message.includes("Run not active") || message.includes("status 422");
+          if (!runInactive) {
+            throw error;
+          }
+
+          setActiveRunId("");
+          setStatusText(text.runInactiveSaved);
+        }
+      }
+
+      await Promise.all([
+        refreshSessions(),
+        refreshFeed(collabSessionId),
+        refreshWorkspaceState(collabSessionId)
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "failed to send";
       setStatusText(message);
@@ -996,12 +1024,12 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
       : null;
 
   return (
-    <section className="h-[calc(100vh-8.5rem)] min-h-[620px] overflow-hidden">
+    <section className="h-full min-h-0 overflow-hidden">
       <div className="flex h-full overflow-hidden rounded-none border-0 bg-[#f4f4f6] shadow-none">
         <aside className="flex h-full w-[300px] shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-[#ececef]">
           <div className="shrink-0 border-b border-zinc-200 px-3 py-2">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-zinc-900">{text.title}</h2>
                 <p className="text-[11px] text-zinc-500">{sessions.length}</p>
               </div>
@@ -1030,7 +1058,7 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
                   className={`rounded-lg border px-2 py-2 transition ${
                     active
                       ? "border-zinc-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                      : "border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/70"
+                      : "border-zinc-200 bg-[#f6f6f8] hover:border-zinc-300 hover:bg-white"
                   }`}
                 >
                   <button
@@ -1084,20 +1112,6 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
                   <h3 className="truncate text-xl font-semibold text-zinc-900">{selectedSession?.name ?? text.noSession}</h3>
                   <p className="mt-0.5 truncate text-xs text-zinc-500">{selectedSession?.description || text.noDescription}</p>
                 </div>
-                {selectedSession ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => {
-                      setDetailTarget(selectedSession);
-                      setDetailOpen(true);
-                    }}
-                  >
-                    <Info className="mr-1 h-4 w-4" />
-                    {text.detail}
-                  </Button>
-                ) : null}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <div className="flex gap-1">
@@ -1139,6 +1153,11 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
                 <span>{text.status}: {workspaceState?.latestRunState.status ?? "UNKNOWN"}</span>
                 <span>•</span>
                 <span>{text.linkedSessions}: {workspaceState?.linkedToolSessions.length ?? 0}</span>
+                <span>•</span>
+                <span>
+                  {text.orchestrator}:{" "}
+                  {(workspaceState?.orchestrator?.provider ?? "-")}{workspaceState?.orchestrator?.model ? `/${workspaceState.orchestrator.model}` : ""}
+                </span>
               </div>
             </div>
 
@@ -1277,7 +1296,7 @@ export function CollabWorkspace({ initialCollabSessionId }: { initialCollabSessi
                 <Button
                   className="h-auto"
                   onClick={() => void sendMessage()}
-                  disabled={!selectedCollabSessionId || !activeRunId || !chatInput.trim()}
+                  disabled={!selectedCollabSessionId || !chatInput.trim()}
                 >
                   <Send className="mr-1 h-4 w-4" />
                   {text.send}

@@ -14,6 +14,9 @@ export interface InteractionRequestRecord {
   toolSessionId: string;
   runId: string;
   prompt: string;
+  rawPrompt?: string;
+  userPrompt?: string;
+  orchestratorDegraded: boolean;
   status: InteractionStatus;
   options: string[];
   createdAt: string;
@@ -34,6 +37,9 @@ export class InteractionRequestsRepository {
         tool_session_id,
         run_id,
         prompt,
+        raw_prompt,
+        user_prompt,
+        orchestrator_degraded,
         status,
         options_json,
         created_at,
@@ -41,7 +47,7 @@ export class InteractionRequestsRepository {
         resolved_at,
         answer_type,
         answer_value
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -50,6 +56,9 @@ export class InteractionRequestsRepository {
       record.toolSessionId,
       record.runId,
       record.prompt,
+      record.rawPrompt ?? null,
+      record.userPrompt ?? null,
+      record.orchestratorDegraded ? 1 : 0,
       record.status,
       JSON.stringify(record.options),
       record.createdAt,
@@ -70,6 +79,9 @@ export class InteractionRequestsRepository {
         tool_session_id,
         run_id,
         prompt,
+        raw_prompt,
+        user_prompt,
+        orchestrator_degraded,
         status,
         options_json,
         created_at,
@@ -127,6 +139,9 @@ export class InteractionRequestsRepository {
         tool_session_id,
         run_id,
         prompt,
+        raw_prompt,
+        user_prompt,
+        orchestrator_degraded,
         status,
         options_json,
         created_at,
@@ -170,6 +185,9 @@ export class InteractionRequestsRepository {
       toolSessionId: String(row.tool_session_id),
       runId: String(row.run_id),
       prompt: String(row.prompt),
+      rawPrompt: row.raw_prompt ? String(row.raw_prompt) : undefined,
+      userPrompt: row.user_prompt ? String(row.user_prompt) : undefined,
+      orchestratorDegraded: Number(row.orchestrator_degraded ?? 0) === 1,
       status: String(row.status) as InteractionStatus,
       options: JSON.parse(String(row.options_json ?? "[]")),
       createdAt: String(row.created_at),

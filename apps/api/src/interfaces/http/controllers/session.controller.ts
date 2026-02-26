@@ -16,7 +16,7 @@ export class SessionController {
   }
 
   @Post()
-  create(
+  async create(
     @Body()
     body: {
       name?: string;
@@ -53,7 +53,7 @@ export class SessionController {
   }
 
   @Post(":collabSessionId/archive")
-  archive(
+  async archive(
     @Param("collabSessionId") collabSessionId: string,
     @Body()
     body?: {

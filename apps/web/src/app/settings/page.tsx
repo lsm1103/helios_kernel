@@ -8,6 +8,7 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useI18n } from "../../lib/i18n";
+import { getJson, postJson } from "../../lib/api-client";
 
 const STORAGE_KEY = "helios-settings-v1";
 
@@ -18,6 +19,22 @@ type AppSettings = {
   larkBound: boolean;
 };
 
+type OrchestratorProvider = "openai" | "anthropic" | "volcengine_ark";
+
+type OrchestratorSettings = {
+  primary_provider: OrchestratorProvider;
+  fallback_providers: OrchestratorProvider[];
+  model: string;
+  base_url: string;
+  timeout_ms: number;
+  temperature: number;
+  max_tokens: number;
+  api_key_masked: string;
+  configured: boolean;
+  updated_by: string;
+  updated_at: string;
+};
+
 const defaultSettings: AppSettings = {
   codexCommand: "codex",
   claudeCommand: "claude",
@@ -25,10 +42,35 @@ const defaultSettings: AppSettings = {
   larkBound: false
 };
 
+const defaultOrchestratorSettings: OrchestratorSettings = {
+  primary_provider: "openai",
+  fallback_providers: ["anthropic"],
+  model: "",
+  base_url: "",
+  timeout_ms: 20000,
+  temperature: 0.2,
+  max_tokens: 1024,
+  api_key_masked: "",
+  configured: false,
+  updated_by: "system",
+  updated_at: ""
+};
+
 export default function SettingsPage() {
   const { locale } = useI18n();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [saved, setSaved] = useState(false);
+  const [orchestrator, setOrchestrator] = useState<OrchestratorSettings>(defaultOrchestratorSettings);
+  const [providerOptions, setProviderOptions] = useState<
+    Array<{ provider: OrchestratorProvider; label: string }>
+  >([
+    { provider: "openai", label: "OpenAI" },
+    { provider: "anthropic", label: "Anthropic" },
+    { provider: "volcengine_ark", label: "Volcengine Ark" }
+  ]);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [orchestratorSaved, setOrchestratorSaved] = useState(false);
+  const [orchestratorStatusText, setOrchestratorStatusText] = useState("");
 
   const text = useMemo(
     () =>
@@ -49,7 +91,22 @@ export default function SettingsPage() {
             larkDesc: "推荐独立成页做引导，后续可以并列扩展 Discord/Slack/企业微信。",
             bound: "已绑定",
             unbound: "未绑定",
-            openGuide: "打开绑定引导"
+            openGuide: "打开绑定引导",
+            orchestratorTitle: "主编排 LLM",
+            orchestratorDesc: "负责需求分析、工具引导、HITL 转写、进度与完成汇报、归档摘要。",
+            primaryProvider: "主供应商",
+            fallbackProviders: "备用供应商",
+            model: "模型",
+            baseUrl: "Base URL",
+            apiKey: "API Key",
+            apiKeyMasked: "已保存密钥",
+            timeoutMs: "超时 (ms)",
+            temperature: "温度",
+            maxTokens: "最大输出 tokens",
+            saveOrchestrator: "保存编排配置",
+            testConnection: "连通性测试",
+            configured: "已配置",
+            unconfigured: "未配置"
           }
         : {
             title: "Settings",
@@ -67,7 +124,22 @@ export default function SettingsPage() {
             larkDesc: "A dedicated guide page scales better for future Discord/Slack/WeCom integrations.",
             bound: "Bound",
             unbound: "Not Bound",
-            openGuide: "Open Guide"
+            openGuide: "Open Guide",
+            orchestratorTitle: "Orchestrator LLM",
+            orchestratorDesc: "Handles requirement analysis, tool guidance, HITL rewrite, progress and completion summaries.",
+            primaryProvider: "Primary Provider",
+            fallbackProviders: "Fallback Providers",
+            model: "Model",
+            baseUrl: "Base URL",
+            apiKey: "API Key",
+            apiKeyMasked: "Stored Key",
+            timeoutMs: "Timeout (ms)",
+            temperature: "Temperature",
+            maxTokens: "Max Tokens",
+            saveOrchestrator: "Save Orchestrator",
+            testConnection: "Test Connection",
+            configured: "Configured",
+            unconfigured: "Not Configured"
           },
     [locale]
   );
@@ -90,6 +162,24 @@ export default function SettingsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [settingsResponse, providers] = await Promise.all([
+          getJson<OrchestratorSettings>("/v1/orchestrator-llm/settings"),
+          getJson<Array<{ provider: OrchestratorProvider; label: string }>>("/v1/orchestrator-llm/providers")
+        ]);
+        setOrchestrator(settingsResponse);
+        if (providers.length > 0) {
+          setProviderOptions(providers);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "failed to load orchestrator settings";
+        setOrchestratorStatusText(message);
+      }
+    })();
+  }, []);
+
   function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
@@ -98,6 +188,55 @@ export default function SettingsPage() {
   function persist() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     setSaved(true);
+  }
+
+  function toggleFallbackProvider(provider: OrchestratorProvider) {
+    setOrchestrator((prev) => {
+      if (provider === prev.primary_provider) {
+        return prev;
+      }
+      const exists = prev.fallback_providers.includes(provider);
+      return {
+        ...prev,
+        fallback_providers: exists
+          ? prev.fallback_providers.filter((item) => item !== provider)
+          : [...prev.fallback_providers, provider]
+      };
+    });
+    setOrchestratorSaved(false);
+  }
+
+  async function saveOrchestratorSettings() {
+    try {
+      const next = await postJson<OrchestratorSettings>("/v1/orchestrator-llm/settings", {
+        ...orchestrator,
+        api_key: apiKeyInput.trim() || undefined,
+        actor: "settings_ui"
+      });
+      setOrchestrator(next);
+      setApiKeyInput("");
+      setOrchestratorSaved(true);
+      setOrchestratorStatusText("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "failed to save orchestrator settings";
+      setOrchestratorStatusText(message);
+      setOrchestratorSaved(false);
+    }
+  }
+
+  async function testConnection() {
+    try {
+      const result = await postJson<{ ok: boolean; provider: OrchestratorProvider; message: string }>(
+        "/v1/orchestrator-llm/health-check",
+        {
+          provider: orchestrator.primary_provider
+        }
+      );
+      setOrchestratorStatusText(`${result.provider}: ${result.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "health check failed";
+      setOrchestratorStatusText(message);
+    }
   }
 
   return (
@@ -174,6 +313,133 @@ export default function SettingsPage() {
             <Button variant="outline" asChild>
               <Link href="/settings/lark">{text.openGuide}</Link>
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>{text.orchestratorTitle}</CardTitle>
+            <CardDescription>{text.orchestratorDesc}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.primaryProvider}</p>
+                <select
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                  value={orchestrator.primary_provider}
+                  onChange={(event) =>
+                    setOrchestrator((prev) => ({
+                      ...prev,
+                      primary_provider: event.target.value as OrchestratorProvider,
+                      fallback_providers: prev.fallback_providers.filter((item) => item !== event.target.value)
+                    }))
+                  }
+                >
+                  {providerOptions.map((option) => (
+                    <option key={option.provider} value={option.provider}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.model}</p>
+                <Input
+                  value={orchestrator.model}
+                  onChange={(event) => setOrchestrator((prev) => ({ ...prev, model: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.baseUrl}</p>
+                <Input
+                  value={orchestrator.base_url}
+                  onChange={(event) => setOrchestrator((prev) => ({ ...prev, base_url: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.timeoutMs}</p>
+                <Input
+                  type="number"
+                  value={orchestrator.timeout_ms}
+                  onChange={(event) =>
+                    setOrchestrator((prev) => ({ ...prev, timeout_ms: Number(event.target.value || 0) }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.temperature}</p>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={orchestrator.temperature}
+                  onChange={(event) =>
+                    setOrchestrator((prev) => ({ ...prev, temperature: Number(event.target.value || 0) }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.maxTokens}</p>
+                <Input
+                  type="number"
+                  value={orchestrator.max_tokens}
+                  onChange={(event) =>
+                    setOrchestrator((prev) => ({ ...prev, max_tokens: Number(event.target.value || 0) }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">{text.fallbackProviders}</p>
+              <div className="flex flex-wrap gap-2">
+                {providerOptions.map((option) => (
+                  <Button
+                    key={option.provider}
+                    size="sm"
+                    variant={orchestrator.fallback_providers.includes(option.provider) ? "default" : "outline"}
+                    disabled={option.provider === orchestrator.primary_provider}
+                    onClick={() => toggleFallbackProvider(option.provider)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.apiKey}</p>
+                <Input
+                  type="password"
+                  placeholder="sk-..."
+                  value={apiKeyInput}
+                  onChange={(event) => setApiKeyInput(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground">{text.apiKeyMasked}</p>
+                <Input disabled value={orchestrator.api_key_masked || "-"} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={orchestrator.configured ? "default" : "outline"}>
+                {orchestrator.configured ? text.configured : text.unconfigured}
+              </Badge>
+              <Button onClick={() => void saveOrchestratorSettings()}>{text.saveOrchestrator}</Button>
+              <Button variant="outline" onClick={() => void testConnection()}>
+                {text.testConnection}
+              </Button>
+              {orchestratorSaved ? (
+                <span className="inline-flex items-center text-xs text-emerald-700">
+                  <CheckCircle2 className="mr-1 h-4 w-4" />
+                  {text.saved}
+                </span>
+              ) : null}
+            </div>
+
+            {orchestratorStatusText ? <p className="text-xs text-muted-foreground">{orchestratorStatusText}</p> : null}
           </CardContent>
         </Card>
       </div>

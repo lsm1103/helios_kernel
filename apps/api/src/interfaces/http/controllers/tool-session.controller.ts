@@ -219,7 +219,7 @@ export class ToolSessionController {
   }
 
   @Post("internal/interaction-requests")
-  createInteraction(
+  async createInteraction(
     @Body()
     body: {
       collab_session_id: string;

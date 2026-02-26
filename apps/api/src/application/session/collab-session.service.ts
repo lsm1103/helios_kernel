@@ -11,6 +11,7 @@ import {
 } from "../../infrastructure/persistence/sqlite/repositories/collab-feed.repository";
 import { ToolSessionLinkService } from "../tooling/tool-session-link.service";
 import { CollabFeedEventService } from "./collab-feed-event.service";
+import { OrchestratorLlmService } from "../orchestrator/orchestrator-llm.service";
 
 interface CreateCollabSessionInput {
   name: string;
@@ -27,10 +28,11 @@ export class CollabSessionService {
     private readonly repo: CollabSessionRepository,
     private readonly feedEventService: CollabFeedEventService,
     private readonly toolSessionService: ToolSessionLinkService,
-    private readonly feedRepo: CollabFeedRepository
+    private readonly feedRepo: CollabFeedRepository,
+    private readonly orchestratorService: OrchestratorLlmService
   ) {}
 
-  create(input: CreateCollabSessionInput): CollabSessionRecord {
+  async create(input: CreateCollabSessionInput): Promise<CollabSessionRecord> {
     const now = new Date().toISOString();
     const collabSessionId = `collab_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
 
@@ -65,6 +67,30 @@ export class CollabSessionService {
       ts: created.updatedAt
     });
 
+    const requirementText = `${created.name}\n${created.description}`.trim();
+    if (requirementText) {
+      const analysis = await this.orchestratorService.analyzeRequirement({
+        sessionName: created.name,
+        requirementText
+      });
+      if (analysis.text.trim()) {
+        this.feedEventService.appendOrchestratorSummary({
+          collabSessionId: created.collabSessionId,
+          content: `[orchestrator:${analysis.provider ?? "degraded"}] ${analysis.text.trim()}`
+        });
+      }
+
+      const suggestion = await this.orchestratorService.suggestToolAndQuestions({
+        requirementText
+      });
+      if (suggestion.text.trim()) {
+        this.feedEventService.appendOrchestratorSummary({
+          collabSessionId: created.collabSessionId,
+          content: `[orchestrator:${suggestion.provider ?? "degraded"}] ${suggestion.text.trim()}`
+        });
+      }
+    }
+
     return created;
   }
 
@@ -80,10 +106,21 @@ export class CollabSessionService {
     return result;
   }
 
-  archive(collabSessionId: string, actor: string, reason?: string): CollabSessionRecord {
+  async archive(collabSessionId: string, actor: string, reason?: string): Promise<CollabSessionRecord> {
     const result = this.repo.archive(collabSessionId, actor, reason);
     if (!result) {
       throw new NotFoundException("Collaboration session not found");
+    }
+
+    const archiveSummary = await this.orchestratorService.summarizeArchive({
+      sessionName: result.name,
+      lastSummary: result.lastMessagePreview20
+    });
+    if (archiveSummary.text.trim()) {
+      this.feedEventService.appendOrchestratorSummary({
+        collabSessionId,
+        content: `[orchestrator:${archiveSummary.provider ?? "degraded"}] ${archiveSummary.text.trim()}`
+      });
     }
     return result;
   }
@@ -115,15 +152,24 @@ export class CollabSessionService {
     session: CollabSessionRecord;
     linkedToolSessions: ReturnType<ToolSessionLinkService["list"]>;
     latestRunState: LatestRunStateRecord;
+    orchestrator: {
+      provider: string;
+      model: string;
+    };
   } {
     const session = this.getById(collabSessionId);
     const linkedToolSessions = this.toolSessionService.list(collabSessionId);
     const latestRunState = this.feedRepo.getLatestRunStateBySession(collabSessionId);
+    const orchestratorSettings = this.orchestratorService.getPublicSettings();
 
     return {
       session,
       linkedToolSessions,
-      latestRunState
+      latestRunState,
+      orchestrator: {
+        provider: orchestratorSettings.primary_provider,
+        model: orchestratorSettings.model
+      }
     };
   }
 }

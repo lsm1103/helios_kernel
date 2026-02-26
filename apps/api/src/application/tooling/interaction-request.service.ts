@@ -14,6 +14,7 @@ import {
 import { ToolSessionLinkService } from "./tool-session-link.service";
 import { PtyRunManager } from "../../infrastructure/tool-runners/pty-run-manager";
 import { CollabFeedEventService } from "../session/collab-feed-event.service";
+import { OrchestratorLlmService } from "../orchestrator/orchestrator-llm.service";
 
 interface CreateInteractionInput {
   collabSessionId: string;
@@ -40,19 +41,28 @@ export class InteractionRequestService {
     private readonly repo: InteractionRequestsRepository,
     private readonly toolSessionService: ToolSessionLinkService,
     private readonly runManager: PtyRunManager,
-    private readonly feedEventService: CollabFeedEventService
+    private readonly feedEventService: CollabFeedEventService,
+    private readonly orchestratorService: OrchestratorLlmService
   ) {}
 
-  create(input: CreateInteractionInput): InteractionRequestRecord {
+  async create(input: CreateInteractionInput): Promise<InteractionRequestRecord> {
     const now = new Date();
     const timeoutMinutes = input.timeoutMinutes ?? 15;
+    const rewrite = await this.orchestratorService.rewriteHitlPrompt({
+      rawPrompt: input.prompt,
+      options: input.options
+    });
+    const userPrompt = rewrite.text?.trim() || input.prompt;
 
     const created = this.repo.create({
       interactionRequestId: randomUUID(),
       collabSessionId: input.collabSessionId,
       toolSessionId: input.toolSessionId,
       runId: input.runId,
-      prompt: input.prompt,
+      prompt: userPrompt,
+      rawPrompt: input.prompt,
+      userPrompt,
+      orchestratorDegraded: rewrite.degraded,
       status: "PENDING",
       options: input.options ?? [],
       createdAt: now.toISOString(),
@@ -63,7 +73,7 @@ export class InteractionRequestService {
       collabSessionId: created.collabSessionId,
       interactionRequestId: created.interactionRequestId,
       runId: created.runId,
-      prompt: created.prompt,
+      prompt: userPrompt,
       options: created.options,
       expiresAt: created.expiresAt,
       ts: created.createdAt
